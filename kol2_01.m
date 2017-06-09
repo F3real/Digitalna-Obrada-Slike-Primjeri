@@ -582,36 +582,139 @@ figure, imshow(ab), title('Bin');
 %Rezultat treba da bude binarna mapa ivica sa vrijednošcu 1 na mjestu gdje se 
 %nalazi ivica i 0 drugdje. Upotreba funkcije edge nije dozvoljena. 
 %Dozvoljena je predobrada i postobrada slike kako bi rezultati bili što bolji.
+clear all
+close all
+clc
+
+metar = imread('metar2.jpg');
+metar = im2double(metar);
+figure, imshow(metar), title('Metar');
+
+w = wiener2(metar, [3 3]);
+figure, imshow(w), title('Metar - filtriran winerom');
+
+p = fspecial('prewitt');
+p1 = p';
+c1 = imfilter(w, p, 'conv', 'replicate');
+c2 = imfilter(w, p1, 'conv', 'replicate');
+
+d = abs(c1) + abs(c2);
+figure, imshow(d, []), title('Metar - amplitudski spektar');
+
+prag = graythresh(d);
+d = d > prag;
+se = strel('square',3);
+d = imdilate(d,se);
+figure, imshow(d), title('Metar - ivice');
+
+%% task 1
+%Data je slika aerodrom.tif. Napisati program u MATLAB-u koji ?e pronalaziti 
+%aerodromsku pistu na ovoj slici. Može se pretpostaviti da je pista prava linija i izlaz iz 
+%programa treba da budu koordinate njenog po?etka i kraja. 
+%Dozvoljeno je ru?no podešavanje parametara.
 clear;
-a = imread('metar2.jpg');
+a = imread('aerodrom.tif');
+a = im2double(a);
 
-ar = imfilter(a, fspecial('average'));
-ar = ar - imfilter(ar, fspecial('laplacian'));
-ar = im2double(ar);
-ar = imadjust(ar, [0.5 0.85], [0 1]);
-ar = im2uint8(ar);
+tr = 0.25;
+ab = im2bw(a, tr);
+ab = ~ab;
 figure,
-subplot(1,2,1), imshow(a), title('Org');
-subplot(1,2,2), imshow(ar), title('After filtering');
-%%
-fs1 = [ 1 0 -1; 2 0 -2; 1 0 -1];
-fs2 = [ 1 2 1; 0 0 0; -1 -2 -1];
+subplot(1,2,1), imshow(a), title('Original');
+subplot(1,2,2), imshow(ab), title('Binary');
 
-fp1 = [ 1 0 -1; 1 0 -1; 1 0 -1];
-fp2 = [ 1 1 1; 0 0 0; -1 -1 -1];
+[H, theta, rho] = hough(ab);
+P = houghpeaks(H, 1);
+lines = houghlines(ab, theta, rho, P, 'FillGap', 8);
 
-g1 = imfilter(ar,fp1);
-g2 = imfilter(ar,fp2);
+
+
+figure, imshow(a), hold on
+for k = 1:length(lines)
+ xy = [lines(k).point1; lines(k).point2];
+ plot(xy(:,1),xy(:,2),'LineWidth',2,'Color','green');
+
+ % ozna?avanje po?etaka i krajeva linija
+ plot(xy(1,1),xy(1,2),'x','LineWidth',2,'Color','yellow');
+ plot(xy(2,1),xy(2,2),'x','LineWidth',2,'Color','red');
+end
+
+startPoint = lines(1).point2;
+endPoint = lines(1).point1;
+
+%% task 2
+%Data je slika objekat.tif. Napisati program u MATLAB-u koji ?e automatski segmentirati datu 
+%sliku na objekat od interesa (tamni objekat u obliku slova T) i pozadinu. 
+%Kvalitet segmentacije ?e uticati na broj bodova.
+clear;
+
+a = imread('objekat.tif');
+figure, imshow(a), title('Original');
+
+a = imfilter(a, fspecial('average', [6 6]));
+
+ae = edge(a, 'canny');
+ae = bwareaopen(ae, 1200); % remove noise
+ae = imfill(ae, 'holes'); % fill holes in image
+
+ab = a .* uint8(ae);
+ab = im2bw(ab, 0.2);
+figure, imshow(ae), title('After seperating image before binary');
+figure, imshow(ab), title('After seperating image after binary');
+
+[x y p ] = size(ab);
+d = reshape(ab, x*y, p);
+d1 = kmeans(d, 2, 'Replicate',10);
+res = reshape(d, x,y,p);
+
+figure, imshow(res), title('Res');
+%% task 3
+%Data je slika BW.bmp. Može se smatrati da su svi kvadrati iste veli?ine, 
+%odnosno, da su svi diskovi iste veli?ine. Obje veli?ine su poznate. 
+%Napisati program u MATLAB-u koji ?e automatski odre?ivati broj krugova na slici.
+clear;
+
+a = imread('BW.bmp');
+a = ~a;
+figure, imshow(a), title('Original');
+
+% remove all squares
+sts = strel('square', 55);
+a_square = imopen(a, sts);
+
+%remove all squares from original
+a = a - a_square;
+%figure, imshow(a), title('Without squares')
+
+%count full circles
+std = strel('disk', 30);
+a_disk = imopen(a, std);
+[H, full_circles]  = bwlabel(a_disk);
+%figure, imshow(a_disk), title('Full circles');
+
+%count partial circles
+a = a - a_disk;
+a = bwareaopen(a, 80); %clear image
+[H, partial_circles]  = bwlabel(a);
+%figure, imshow(a), title('Partial circles');
+
 
 figure,
-subplot(1,2,1), imshow(g1, []), title('x');
-subplot(1,2,2), imshow(g2, []), title('y');
+subplot(2,2,1), imshow(a_disk), title('Full circles');
+subplot(2,2,2), imshow(a), title('Partial circles');
+subplot(2,2,3), imshow(imread('BW.bmp')), title('Original');
+res = partial_circles + full_circles;
 
-g1 = im2bw(g1, 0.1);
-g2 = im2bw(g2, 0.1);
-ab = g1 & g2;
-figure, imshow(ab), title('Bin comb');
+
 %%
+
+
+
+
+
+
+
+
 
 
 
